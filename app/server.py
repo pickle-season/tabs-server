@@ -1,13 +1,14 @@
-from asyncio import sleep
 from contextlib import contextmanager
+from bs4 import BeautifulSoup
 
-from playwright.async_api import async_playwright, TimeoutError
+from requests import get
 
 from sqlalchemy import create_engine
 from sqlmodel import SQLModel, Session, select
 
-from app.models import Song
+from app.models import Song, Chords, Tab
 from app.utils import log, LoginData
+from app.scraping import get_song_data, get_content
 
 
 class TabsServer:
@@ -22,6 +23,9 @@ class TabsServer:
         self.create_db_and_tables()
 
     def create_db_and_tables(self):
+        # TODO: For debug
+        SQLModel.metadata.drop_all(self.engine)
+
         SQLModel.metadata.create_all(self.engine)
 
     @contextmanager
@@ -29,51 +33,82 @@ class TabsServer:
         with Session(self.engine) as session:
             yield session
 
+    def clean_db(self):
+        with self.session() as session:
+            # Delete everything
+            for db_tab in session.exec(select(Tab)).all():
+                session.delete(db_tab)
+            for db_chords in session.exec(select(Chords)).all():
+                session.delete(db_chords)
+            for db_song in session.exec(select(Song)).all():
+                session.delete(db_song)
+
+            # Refresh all
+            for db_song in session.exec(select(Song)).all():
+                session.refresh(db_song)
+            for db_chords in session.exec(select(Chords)).all():
+                session.refresh(db_chords)
+            for db_tab in session.exec(select(Tab)).all():
+                session.refresh(db_tab)
+
+            session.commit()
+
+    # TODO: refactor into separate functions for db update, refresh, extract song, chord, tab info, etc
     async def update_songs(self, login_data: LoginData) -> None:
         log.info("Getting songs")
 
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=False)
-            context = await browser.new_context()
-            page = await context.new_page()
-            await page.goto('https://www.ultimate-guitar.com/')
-            #log_in = await page.locator("text=Log in").first.text_content()
-            #log.debug("found: %s", log_in)
+        songs, chords, tabs = await get_song_data(login_data)
 
-            await page.click("text=i do not accept")
-            await page.click("text=log in")
-
-            await page.fill('input[name="username"]', login_data.username)
-            await page.fill('input[name="password"]', login_data.password)
-
-            await (await page.locator("text=LOG IN").all())[2].click()
-
-            await page.click("text=my tabs")
-
-            # If there is the per page text, click on all button
-            per_page = page.locator("text=per page")
-            try:
-                await per_page.wait_for(state="attached", timeout=10000)
-                log.debug("Per page found")
-                await per_page.scroll_into_view_if_needed()
-                await per_page.locator("xpath=.. >> text=ALL").click()
-
-            except TimeoutError:
-                log.debug("Per page not found")
-
-            # TODO: extract song table
-
-            await sleep(10)
-
-            await browser.close()
+        self.clean_db()
 
         with self.session() as session:
-            new_song = Song(title="test_title", artist="test_artist")
+            session.add_all(songs)
+            for db_song in session.exec(select(Song)).all():
+                session.refresh(db_song)
 
-            session.add(new_song)
+            for new_chords in chords:
+                session.add(
+                    Chords(
+                        version=new_chords[0],
+                        url=new_chords[1],
+                        song_id=next(filter(lambda song: song.title == new_chords[2], songs)).id
+                    )
+                )
+            for new_tab in tabs:
+                session.add(
+                    Tab(
+                        version=new_tab[0],
+                        url=new_tab[1],
+                        song_id=next(filter(lambda song: song.title == new_tab[2], songs)).id
+                    )
+                )
+
             session.commit()
-            session.refresh(new_song)
 
-    def get_songs(self) -> list[Song]:
+    def get_songs(self):
         with self.session() as session:
-            return list(session.exec(select(Song)).all())
+            return [
+                {
+                    "id": song.id,
+                    "artist": song.artist,
+                    "title": song.title,
+                    "chords": song.chords,
+                    "tabs": song.tabs
+                }
+                for song in list(session.exec(select(Song)).all())
+            ]
+
+
+    def get_chords(self, chords_id: int):
+        with self.session() as session:
+            url = session.get(Chords, chords_id).url
+
+        return {"content": get_content(url)}
+
+    def get_tab(self, tab_id: int):
+        with self.session() as session:
+            url = session.get(Tab, tab_id).url
+
+        return {"content": get_content(url)}
+
+

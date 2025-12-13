@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from logging import getLogger, DEBUG
 from typing import Literal
 
+
 log = getLogger("uvicorn")
 log.setLevel(DEBUG)
 
@@ -14,3 +15,4 @@ class APIResponse:
 class LoginData:
     username: str
     password: str
+
