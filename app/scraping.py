@@ -34,7 +34,7 @@ async def log_in(context, username: str, password: str) -> Page:
 
 async def get_song_data(login_data) -> tuple[list[Song], list[tuple[int, str, str]], list[tuple[int, str, bool, str]]]:
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context()
         with open("cookies.json", "r") as file:
             cookies = loads(file.read())

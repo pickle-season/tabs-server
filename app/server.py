@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlmodel import SQLModel, Session, select
 
@@ -22,7 +23,7 @@ class TabsServer:
 
     def create_db_and_tables(self):
         # TODO: For debug
-        SQLModel.metadata.drop_all(self.engine)
+        #SQLModel.metadata.drop_all(self.engine)
 
         SQLModel.metadata.create_all(self.engine)
 
@@ -128,13 +129,23 @@ class TabsServer:
 
     def get_chords(self, chords_id: int):
         with self.session() as session:
-            url = session.get(Chords, chords_id).url
+            chords = session.get(Chords, chords_id)
+
+        if chords:
+            url = chords.url
+        else:
+            raise HTTPException(status_code=404, detail="Chords not found")
 
         return {"content": get_content(url)}
 
     def get_tab(self, tab_id: int):
         with self.session() as session:
-            url = session.get(Tab, tab_id).url
+            tab = session.get(Tab, tab_id)
+
+        if tab:
+            url = tab.url
+        else:
+            raise HTTPException(status_code=404, detail="Tab not found")
 
         return {"content": get_content(url)}
 
