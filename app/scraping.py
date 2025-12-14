@@ -20,8 +20,6 @@ async def get_tab_data(link: str):
 async def log_in(context, username: str, password: str) -> Page:
     page = await context.new_page()
     await page.goto('https://www.ultimate-guitar.com/')
-    # log_in = await page.locator("text=Log in").first.text_content()
-    # log.debug("found: %s", log_in)
 
     await page.click("text=i do not accept")
     await page.click("text=log in")
@@ -121,10 +119,21 @@ async def get_song_data(login_data) -> tuple[list[Song], list[tuple[int, str, st
         return songs, chords, tabs
 
 def get_content(url: str):
+    # TODO: Rewrite using playwright to get correct whitespace
+
     soup = BeautifulSoup(get(url).content, "html.parser")
     #log.debug(soup)
     try:
         content = unescape(str(soup.find("div", {"class": "js-store"})).split("&quot;content&quot;:&quot;")[1].split("&quot;,&quot;revision_id")[0])
     except IndexError:
         raise HTTPException(status_code=401, detail="Probably need to solve captcha")
+
+    #content = codecs.decode(content, "unicode_escape")
+    content = (
+        content
+               .replace("\\r\\n", "\n")
+               .replace("\\r", "\r")
+               .replace("\\n", "\n")
+               .replace('\\"','\"')
+    )
     return content

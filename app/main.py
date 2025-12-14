@@ -1,13 +1,12 @@
 from fastapi import FastAPI, HTTPException
 
-from app.models import Song
-from app.scraping import get_content
 from app.server import TabsServer
-from app.utils import APIResponse, LoginData
+from app.utils import LoginData
 
 app = FastAPI(title="Tabs Server")
 server = TabsServer()
 
+# TODO: Implement downloading chords to avoid captcha bullshit
 @app.get("/chords/{chords_id}")
 async def chords(chords_id: int):
     return server.get_chords(chords_id)
@@ -35,5 +34,6 @@ async def update(login_data: LoginData):
 
 @app.get("/dl")
 async def dl():
-    server._download()
+    raise HTTPException(403, "Download is not allowed. need to check get_content first.")
+    #server._download()
 
