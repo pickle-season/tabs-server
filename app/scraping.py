@@ -9,7 +9,8 @@ from playwright.async_api import TimeoutError
 from html import unescape
 
 from app.models import Song
-from app.utils import log
+from app.utils import log, LoginData
+
 
 async def get_chord_data(link: str):
     pass
@@ -17,25 +18,25 @@ async def get_chord_data(link: str):
 async def get_tab_data(link: str):
     pass
 
-async def log_in(context, username: str, password: str) -> Page:
+async def log_in(context, login_data: LoginData) -> Page:
     page = await context.new_page()
     await page.goto('https://www.ultimate-guitar.com/')
 
     await page.click("text=i do not accept")
     await page.click("text=log in")
 
-    await page.fill('input[name="username"]', username)
-    await page.fill('input[name="password"]', password)
+    await page.fill('input[name="username"]', login_data.username)
+    await page.fill('input[name="password"]', login_data.password)
 
     await (await page.locator("text=LOG IN").all())[2].click()
     return page
 
-async def get_song_data(login_data) -> tuple[list[Song], list[tuple[int, str, str]], list[tuple[int, str, bool, str]]]:
+async def get_song_data(login_data: LoginData | None) -> tuple[list[Song], list[tuple[int, str, str]], list[tuple[int, str, bool, str]]]:
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         with open("cookies.json", "r") as file:
-            cookies = loads(file.read())
+            cookies = loads(file.read())["Request Cookies"]
         await context.add_cookies(
             [
                 SetCookieParam(
@@ -47,16 +48,17 @@ async def get_song_data(login_data) -> tuple[list[Song], list[tuple[int, str, st
                 for k, v in cookies.items()
             ]
         )
-
-        #page = await log_in(context, login_data.username, login_data.password)
-        page = await context.new_page()
-        await page.goto('https://www.ultimate-guitar.com/')
-        await page.click("text=i do not accept")
+        if login_data:
+            page = await log_in(context, login_data)
+        else:
+            page = await context.new_page()
+            await page.goto('https://www.ultimate-guitar.com/')
+            await page.click("text=i do not accept")
 
         try:
             await page.click("text=my tabs")
         except TimeoutError:
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail="Invalid username, password or cookies.json")
 
         # If there is the per page text, click on the ALL button
         per_page = page.locator("text=per page")

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 
 from app.server import TabsServer
 from app.utils import LoginData
@@ -19,10 +19,10 @@ async def tab(tab_id: int):
 async def saved_songs():
     return server.get_songs()
 
-@app.post("/update")
-async def update(login_data: LoginData):
+@app.post("/update_cache")
+async def update_cache(login_data: LoginData | None = Body(None)):
     try:
-        await server.update_songs(login_data)
+        await server.update_cache(login_data)
 
     except HTTPException as error:
         raise error

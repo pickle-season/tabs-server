@@ -80,9 +80,9 @@ class TabsServer:
 
             session.commit()
 
-    # TODO: refactor into separate functions for db update, refresh, extract song, chord, tab info, etc
-    async def update_songs(self, login_data: LoginData) -> None:
+    async def update_cache(self, login_data: LoginData | None) -> None:
         log.info("Getting songs")
+        log.debug("Login data: %s", login_data)
 
         songs, chords, tabs = await get_song_data(login_data)
 
@@ -94,19 +94,23 @@ class TabsServer:
                 session.refresh(db_song)
 
             for new_chords in chords:
+                log.debug("Caching chords: %s", new_chords[1])
                 session.add(
                     Chords(
                         version=new_chords[0],
                         url=new_chords[1],
+                        content=get_content(new_chords[1]),
                         song_id=next(filter(lambda song: song.title == new_chords[2], songs)).id
                     )
                 )
             for new_tab in tabs:
+                log.debug("Caching tab: %s", new_tab[1])
                 session.add(
                     Tab(
                         version=new_tab[0],
                         url=new_tab[1],
                         bass=new_tab[2],
+                        content=get_content(new_tab[1]),
                         song_id=next(filter(lambda song: song.title == new_tab[3], songs)).id
                     )
                 )
