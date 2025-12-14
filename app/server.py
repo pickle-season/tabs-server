@@ -1,7 +1,5 @@
 from contextlib import contextmanager
-from bs4 import BeautifulSoup
-
-from requests import get
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlmodel import SQLModel, Session, select
@@ -27,6 +25,34 @@ class TabsServer:
         SQLModel.metadata.drop_all(self.engine)
 
         SQLModel.metadata.create_all(self.engine)
+
+    def _download(self):
+        chord_path = Path("./tabs_chords/chords")
+        tabs_path = Path("./tabs_chords/tabs")
+
+        chord_path.mkdir(parents=True, exist_ok=True)
+        tabs_path.mkdir(parents=True, exist_ok=True)
+
+        with self.session() as session:
+            import ast
+            for chord in session.exec(select(Chords)).all():
+                log.info("downloading: %s", chord.url)
+
+                content = get_content(chord.url)
+                text = ast.literal_eval(f'"{content}"')
+
+                with (chord_path / f"{chord.song.title}-{chord.version}.txt").open(mode="w") as f:
+                    f.write(text)
+
+            for tab in session.exec(select(Tab)).all():
+                log.info("downloading: %s", tab.url)
+
+                content = get_content(tab.url)
+                text = ast.literal_eval(f'"{content}"')
+
+                with (tabs_path / f"{tab.song.title}-{tab.version}.txt").open(mode="w") as f:
+                    f.write(text)
+
 
     @contextmanager
     def session(self):
@@ -79,7 +105,8 @@ class TabsServer:
                     Tab(
                         version=new_tab[0],
                         url=new_tab[1],
-                        song_id=next(filter(lambda song: song.title == new_tab[2], songs)).id
+                        bass=new_tab[2],
+                        song_id=next(filter(lambda song: song.title == new_tab[3], songs)).id
                     )
                 )
 

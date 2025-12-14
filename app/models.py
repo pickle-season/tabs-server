@@ -12,7 +12,7 @@ class Song(SQLModel, table=True):
 class Chords(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     version: int
-    url: str # TODO: rename to url
+    url: str
 
     song_id: int = Field(foreign_key="song.id")
     song: Song = Relationship(back_populates="chords")
@@ -20,7 +20,8 @@ class Chords(SQLModel, table=True):
 class Tab(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     version: int
-    url: str # TODO: rename to url
+    url: str
+    bass: bool
 
     song_id: int = Field(foreign_key="song.id")
     song: Song = Relationship(back_populates="tabs")

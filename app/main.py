@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.models import Song
+from app.scraping import get_content
 from app.server import TabsServer
 from app.utils import APIResponse, LoginData
 
@@ -20,12 +21,19 @@ async def saved_songs():
     return server.get_songs()
 
 @app.post("/update")
-async def update(login_data: LoginData) -> APIResponse:
-    # TODO: Uncomment
-    #try:
-    await server.update_songs(login_data)
+async def update(login_data: LoginData):
+    try:
+        await server.update_songs(login_data)
 
-    #except Exception as error:
-        #return APIResponse("error", str(error))
+    except HTTPException as error:
+        raise error
 
-    return APIResponse("ok", "test")
+    # except Exception as error:
+    #     raise HTTPException(status_code=500, detail=str(error))
+
+    return {"detail": "ok"}
+
+@app.get("/dl")
+async def dl():
+    server._download()
+
